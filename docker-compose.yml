@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: notes_nginx
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./backend:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php
+
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: notes_php
+    volumes:
+      - ./backend:/var/www/html
+    depends_on:
+      - mysql
+    environment:
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-notes_db}
+      DB_USER: ${DB_USER:-notes_user}
+      DB_PASSWORD: ${DB_PASSWORD:-notes_password}
+
+  mysql:
+    image: mysql:8.0
+    container_name: notes_mysql
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-notes_db}
+      MYSQL_USER: ${DB_USER:-notes_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-notes_password}
+    ports:
+      - "${MYSQL_HOST_PORT:-33061}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+
+  frontend:
+    image: node:20-alpine
+    container_name: notes_frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - nginx
+
+volumes:
+  mysql_data:
